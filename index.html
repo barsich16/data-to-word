@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="utf-8" />
+
+    <script src="js/sheetjs/dist/shim.min.js"></script>
+    <script src="js/sheetjs/dist/xlsx.full.min.js"></script>
+    <script src="js/canvas-datagrid/dist/canvas-datagrid.js"></script>
+    <!-- <link rel="stylesheet" href="assets/css/xls.css"> -->
+    <!-- <script src="assets/jQuery/jquery-3.3.1.min.js"></script> -->
+    <script src="js/Stuk-jszip/dist/jszip.min.js"> </script>
+    <script src="js/FileSaver/dist/FileSaver.min.js"></script>
+
+</head>
+
+<body>
+    <!-- <div id="drop">
+        <form class="my-form">
+            <p>Drop a file here</p>
+        </form>
+    </div> -->
+Работает прямо из папки без сервера
+<br>
+    Для отображения данных EXCEL
+    <a href="https://github.com/SheetJS/js-xlsx">XLSX Library</a> (for parsing); <a href="https://github.com/TonyGermaneri/canvas-datagrid">Grid Library</a>
+    <br>
+    <br>
+    Для работы с архивом (docx - архив)
+    <a href="https://stuk.github.io/jszip/">JSZip</a>
+    <br>
+    Для сохранения файла
+    <a href="https://github.com/eligrey/FileSaver.js#readme">FileSaver.js</a>
+    <br>
+    <br>
+    <label for="file">Файл EXCEL с данными</label>
+    <input type="file" id="file" value="">
+
+    <div id="excel">
+
+    </div>
+    <label for="filew">Файл Word для заполнения данными</label>
+    <input type="file" multiple id="filew" value="">
+
+
+    <script>
+        var json = {};
+        function to_json(workbook) {
+            if (workbook.SSF) XLSX.SSF.load_table(workbook.SSF);
+            var result = {};
+            workbook.SheetNames.forEach(function (sheetName) {
+                var roa = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { raw: false, header: 1 });
+                if (roa.length > 0) result[sheetName] = roa;
+            });
+            return result;
+        }
+
+        function process_wb(wb, sheetidx) {
+            //last_wb = wb;
+            // opts.on.wb(wb, sheetidx);
+
+            // if (wb.SSF) XLSX.SSF.load_table(wb.SSF);
+            // var result = {};
+            // wb.SheetNames.forEach(function (sheetName) {
+            //     var roa = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { raw: false, header: 1 });
+            //     if (roa.length > 0) result[sheetName] = roa;
+            // });
+
+            var sheet = wb.SheetNames[sheetidx || 0];
+            json = to_json(wb)[sheet];
+            console.log(json);
+
+            var i = 0;
+            var maxcol = 0;
+            json.forEach(el => {
+                if (maxcol < el.length) maxcol = el.length
+            })
+            json.forEach(el => {
+                for (i = 0; i < maxcol; i++) {
+                    if (!el[i]) el[i] = ''
+                }
+            });
+
+            add_grid(json);
+        }
+
+        function add_grid(json) {
+            var grid = canvasDatagrid();
+            var topaste = document.getElementById('excel');
+            console.log(topaste);
+            if (topaste.children.length > 0) {
+                topaste.replaceChildren();
+            }
+            topaste.appendChild(grid);
+
+            grid.formatters.date = function (e) { return new Date(e.cell.value).toLocaleDateString(); },
+                grid.attributes.filterOptionText = "Фильтр по <strong>%s</strong>",
+                grid.attributes.clearSettingsOptionText = "Очистить сохраненные установки",
+                grid.attributes.columnSelectorText = "Добавить/Удалить колонки",
+                grid.attributes.copyText = "Копировать",
+                grid.attributes.hideColumnText = "Скрыть <strong>%s</strong>",
+                grid.attributes.pasteText = "Вставить",
+                grid.attributes.removeFilterOptionText = "Удалить фильтр по <strong>%s</strong>",
+                grid.attributes.showOrderByOptionTextAsc = "Сортировать <strong>%s</strong> по возрастанию",
+                grid.attributes.showOrderByOptionTextDesc = "Сортировать <strong>%s</strong> по убыванию",
+                //пустая строка
+                grid.attributes.showNewRow = true
+
+
+            // grid.schema = [
+            //     {
+            //         name: 'col1',
+            //         type: 'number',
+            //         title: 'Колонка 1',
+            //         width: 125
+            //     },
+            //     {
+            //         name: 'col2',
+            //         type: 'string',
+            //         title: 'Колонка 2',
+            //         width: 350
+            //     },
+            //     {
+            //         name: 'col3',
+            //         type: 'date',
+            //         title: 'Колонка 3',
+            //         width: 150
+            //     }
+            // ],
+            grid.data = json;
+        }
+
+
+        // function fixdata(data) {
+        //     var o = "", l = 0, w = 10240;
+        //     for (; l < data.byteLength / w; ++l)
+        //         o += String.fromCharCode.apply(null, new Uint8Array(data.slice(l * w, l * w + w)));
+        //     o += String.fromCharCode.apply(null, new Uint8Array(data.slice(o.length)));
+        //     return o;
+        // }
+        //загрузка файла по кнопке
+        function handleFile(e) {
+            // var rABS = typeof FileReader !== 'undefined' && FileReader.prototype && FileReader.prototype.readAsBinaryString;
+            var files = e.target.files, f = files[0];
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                var data = new Uint8Array(e.target.result);
+                var wb = XLSX.read(data, { type: 'array' });
+                process_wb(wb);
+                /* DO SOMETHING WITH workbook HERE */
+            };
+            reader.readAsArrayBuffer(f);
+        }
+        //загрузка файла перетаскиванием
+        // function handleDrop(e) {
+        //     e.stopPropagation(); e.preventDefault();
+        //     var files = e.dataTransfer.files, f = files[0];
+        //     var reader = new FileReader();
+        //     reader.onload = function (e) {
+        //         var data = new Uint8Array(e.target.result);
+        //         var workbook = XLSX.read(data, { type: 'array' });
+        //         console.log(workbook);
+        //         /* DO SOMETHING WITH workbook HERE */
+        //     };
+        //     reader.readAsArrayBuffer(f);
+        // }
+
+
+        var _file = document.getElementById('file');
+        // var _target = document.getElementById('drop');
+        _file.addEventListener('change', handleFile, false);
+        // _target.addEventListener('drop', handleDrop, false);
+
+        // ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        //     _target.addEventListener(eventName, preventDefaults, false)
+        // })
+        // function preventDefaults(e) {
+        //     e.preventDefault()
+        //     e.stopPropagation()
+        // }
+
+
+        // ;['dragenter', 'dragover'].forEach(eventName => {
+        //     _target.addEventListener(eventName, highlight, false)
+        // })
+        //     ;['dragleave', 'drop'].forEach(eventName => {
+        //         _target.addEventListener(eventName, unhighlight, false)
+        //     })
+        // function highlight(e) {
+        //     _target.classList.add('highlight')
+        // }
+        // function unhighlight(e) {
+        //     _target.classList.remove('highlight')
+        // }
+
+        // обработка WORD
+        function isprXML(xmlfile) {
+            //почистить шаблон до правильного вида переменных {peremennaya}
+            var re = /({.*?})/sg;
+            var re2 = /(<.*?>)/g;;
+            let result = xmlfile.match(re) || [];
+            result.forEach(element => {
+                var newel = element.replace(re2, "");
+                xmlfile = xmlfile.replace(element, newel);
+            });
+            return xmlfile;
+        }
+
+
+        function handleFilew(e) {
+            var files = e.target.files, f = files[0];
+            for (let i = 0; i < files.length; i++) {
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var data = new Uint8Array(e.target.result);
+                    var zip = new JSZip();
+                    var zip2 = new JSZip();
+                    //разархивировать
+                    zip.loadAsync(data)
+                        .then(function (zip) {
+                            // в архиве найти файл word/document.xml
+                            zip.file("word/document.xml").async("string").then(function (xmlfile) {
+                                xmlfile = isprXML(xmlfile);
+                                let maxk = json[0].length;
+
+                                for (let i = 1; i < json.length; i++) {
+                                    let data = {};
+
+                                    for (let j = 0; j < maxk; j++) {
+                                        data[json[0][j]] = json[i][j];
+                                    }
+
+                                    if (data.day === '' && data.month === '') { // проверка на '' строки
+                                        continue
+                                    };
+
+                                    let newxml = xmlfile;
+                                    for (key in data) {
+                                        newxml = newxml.replaceAll("{" + key + "}", data[key]);  // replace vars
+                                    }
+                                    zip.file("word/document.xml", newxml);
+
+                                    var promise = null;
+                                    if (JSZip.support.uint8array) {
+                                        promise = zip.generateAsync({ type: "uint8array" });
+                                    }
+                                    zip2.file("out" + i + ".docx", promise);
+
+                                }
+                                zip2.generateAsync({ type: "blob" })   // generate zip
+                                    .then(function (blob) {
+                                        saveAs(blob, "out.zip");
+                                    });
+                                //
+
+                            });
+                        });
+
+                    /* DO SOMETHING WITH workbook HERE */
+                };
+                reader.readAsArrayBuffer(files[i]);
+            }
+
+
+        }
+
+        var _filew = document.getElementById('filew');
+        _filew.addEventListener('change', handleFilew, false);
+
+    </script>
+</body>
+
+</html>
